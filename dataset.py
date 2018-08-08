@@ -2,6 +2,7 @@
 import sys, os, argparse
 import numpy as np
 import random
+import networkx as nx
 from concorde.tsp import TSPSolver
 from redirector import Redirector
 
@@ -95,6 +96,16 @@ def create_graph_euc_2D(n, bins, connectivity):
     return np.triu(Ma), Mw, ([] if route is None else route), nodes
 #end
 
+def shortest_paths(n, Ma, Mw):
+
+    D = [float('inf')]*n
+    visited = np.zeros(n,dtype=bool)
+
+    while len(visited) > 0:
+        i = visited.pop()
+    #end
+#end
+
 def create_graph_random(n, bins, connectivity):
     """
         Creates a graph 'n' vertices and the given connectivity. Edge weights
@@ -113,10 +124,27 @@ def create_graph_random(n, bins, connectivity):
     # Build a weight matrix
     Mw = np.random.rand(n,n)
 
+    # Create networkx graph G
+    G = nx.Graph()
+    G.add_nodes_from(range(n))
+    G.add_edges_from([ (i,j,{'weight':Mw[i,j]}) for i in range(n) for j in range(n) ])
+
+    # Enforce metric property
+    for i in range(n):
+        for j in range(n):
+            Mw[i,j] = nx.shortest_path_length(G,source=i,target=j)
+
+    # Check for metric property
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                if Mw[i,j] + Mw[j,k] < Mw[i,k]:
+                    print("Graph not metric!")
+
     # Enforce symmetry (but it does not matter because only edges (i,j) with i < j are added to the instance)
     for i in range(n):
         for j in range(i+1,n):
-            Mw[j,i] = M[i,j]
+            Mw[j,i] = Mw[i,j]
 
     # Add huge costs to inexistent edges to simulate a disconnected instance
     for i in range(n):
