@@ -132,7 +132,7 @@ def create_graph_random(n, bins, connectivity):
     # Enforce metric property
     for i in range(n):
         for j in range(n):
-            Mw[i,j] = nx.shortest_path_length(G,source=i,target=j)
+            Mw[i,j] = nx.shortest_path_length(G,source=i,target=j,weight='weight')
 
     # Check for metric property
     for i in range(n):
