@@ -84,7 +84,8 @@ def ensure_datasets(batch_size, train_params, test_params):
             train_params['conn_min'], train_params['conn_max'],
             bins=train_params['bins'],
             samples=train_params['samples'],
-            path='train')
+            path='train',
+            dataset_type=train_params['dataset_type'])
     #end
 
     if not os.path.isdir('test'):
@@ -94,7 +95,8 @@ def ensure_datasets(batch_size, train_params, test_params):
             test_params['conn_min'], test_params['conn_max'],
             bins=test_params['bins'],
             samples=test_params['samples'],
-            path='test')
+            path='test',
+            dataset_type=train_params['dataset_type'])
     #end
 #end
 
@@ -103,14 +105,13 @@ if __name__ == '__main__':
     # Define argument parser
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-d', default=64, type=int, help='Embedding size for vertices and edges')
-    parser.add_argument('-timesteps', default=32, type=int, help='# Timesteps')
+    parser.add_argument('-timesteps', default=25, type=int, help='# Timesteps')
     parser.add_argument('-dev', default=0.05, type=float, help='Target cost deviation')
     parser.add_argument('-epochs', default=32, type=int, help='Training epochs')
     parser.add_argument('-batchsize', default=16, type=int, help='Batch size')
     parser.add_argument('-seed', type=int, default=42, help='RNG seed for Python, Numpy and Tensorflow')
     parser.add_argument('--load', const=True, default=False, action='store_const', help='Load model checkpoint?')
     parser.add_argument('--save', const=True, default=False, action='store_const', help='Save model?')
-    parser.add_argument('--newdatasets', const=True, default=False, action='store_const', help='Recreate datasets?')
 
     # Parse arguments from command line
     args = parser.parse_args()
@@ -136,7 +137,8 @@ if __name__ == '__main__':
         'conn_max': 1,
         'bins': 10**6,
         'batches_per_epoch': 128,
-        'samples': 2**20
+        'samples': 2**20,
+        'dataset_type': 'random'
     }
 
     test_params = {
@@ -146,14 +148,9 @@ if __name__ == '__main__':
         'conn_max': 1,
         'bins': 10**6,
         'batches_per_epoch': 32,
-        'samples': 1024
+        'samples': 1024,
+        'dataset_type': 'random'
     }
-
-    # Delete datasets if requested
-    if vars(args)['newdatasets']:
-        shutil.rmtree('train')
-        shutil.rmtree('test')
-    #end
     
     # Ensure that train and test datasets exist and create if inexistent
     ensure_datasets(batch_size, train_params, test_params)
@@ -195,7 +192,7 @@ if __name__ == '__main__':
 
                 print("Testing model...", flush=True)
                 for (batch_i, batch) in islice(enumerate(test_loader.get_batches(batch_size, target_cost_dev)), test_params['batches_per_epoch']):
-                    test_stats['loss'][batch_i], test_stats['acc'][batch_i], test_stats['sat'][batch_i], test_stats['pred'][batch_i], train_stats['TP'][batch_i], train_stats['FP'][batch_i], train_stats['TN'][batch_i], train_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=False, verbose=True)
+                    test_stats['loss'][batch_i], test_stats['acc'][batch_i], test_stats['sat'][batch_i], test_stats['pred'][batch_i], test_stats['TP'][batch_i], test_stats['FP'][batch_i], test_stats['TN'][batch_i], test_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=False, verbose=True)
                 #end
                 summarize_epoch(epoch_i,test_stats['loss'],test_stats['acc'],test_stats['sat'],test_stats['pred'],train=False)
 

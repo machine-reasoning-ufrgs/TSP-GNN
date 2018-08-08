@@ -1,5 +1,5 @@
 
-import sys, os
+import sys, os, argparse
 import numpy as np
 import random
 from concorde.tsp import TSPSolver
@@ -95,7 +95,61 @@ def create_graph_euc_2D(n, bins, connectivity):
     return np.triu(Ma), Mw, ([] if route is None else route), nodes
 #end
 
-def create_dataset(nmin, nmax, conn_min, conn_max, path, bins=10**6, connectivity=1, samples=1000):
+def create_graph_random(n, bins, connectivity):
+    """
+        Creates a graph 'n' vertices and the given connectivity. Edge weights
+        are initialized randomly.
+    """
+
+    # Build an adjacency matrix with given connectivity
+    Ma = (np.random.rand(n,n) < connectivity).astype(int)
+    for i in range(n):
+        Ma[i,i] = 0
+        for j in range(i+1,n):
+            Ma[i,j] = Ma[j,i]
+        #end
+    #end
+    
+    # Build a weight matrix
+    Mw = np.random.rand(n,n)
+
+    # Enforce symmetry (but it does not matter because only edges (i,j) with i < j are added to the instance)
+    for i in range(n):
+        for j in range(i+1,n):
+            Mw[j,i] = M[i,j]
+
+    # Add huge costs to inexistent edges to simulate a disconnected instance
+    for i in range(n):
+        for j in range(n):
+            if Ma[i,j] == 0:
+                Mw[i,j] = n+1
+
+    # Rescale and round weights, quantizing them into 'bins' integer bins
+    Mw = np.round(bins * Mw)
+
+    # Solve
+    route = solve(Ma,Mw)
+    if route == []: print('Unsolvable');
+
+    # Check if route contains edges which are not in the graph and add them
+    for (i,j) in [ (i,j) for (i,j) in zip(route,route[1:]+route[0:1]) if Ma[i,j] == 0 ]:
+        Ma[i,j] = Ma[j,i] = 1
+        Mw[i,j] = Mw[j,i] = 1
+    #end
+
+    # Remove huge costs from inexistent edges to simulate a disconnected instance
+    for i in range(n):
+        for j in range(n):
+            if Ma[i,j] == 0:
+                Mw[i,j] = 0
+
+    # Rescale weights such that they are all ∈ [0,1]
+    Mw = Mw / bins
+
+    return np.triu(Ma), Mw, ([] if route is None else route), []
+#end
+
+def create_dataset(nmin, nmax, conn_min, conn_max, path, bins=10**6, connectivity=1, samples=1000, dataset_type='euc_2D'):
 
     if not os.path.exists(path):
         os.makedirs(path)
@@ -108,7 +162,13 @@ def create_dataset(nmin, nmax, conn_min, conn_max, path, bins=10**6, connectivit
         while route == []:
             n = np.random.randint(nmin,nmax+1)
             connectivity = np.random.uniform(conn_min,conn_max)
-            Ma,Mw,route,nodes = create_graph_euc_2D(n,bins,connectivity)
+            if dataset_type == 'euc_2D':
+                Ma,Mw,route,nodes = create_graph_euc_2D(n,bins,connectivity)
+            elif dataset_type == 'random':
+                Ma,Mw,route,nodes = create_graph_random(n,bins,connectivity)
+            else:
+                raise Exception('Unknown dataset type')
+            #end
         #end
 
         # Write graph to file
@@ -156,4 +216,35 @@ def write_graph(Ma, Mw, route, filepath, int_weights=False):
 
         out.write('EOF\n')
     #end
+#end
+
+if __name__ == '__main__':
+
+    # Define argument parser
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('-seed', type=int, default=42, help='RNG seed for Python, Numpy and Tensorflow')
+    parser.add_argument('-type', default='euc_2D', help='Which type of dataset? (euc_2D or random)')
+    parser.add_argument('-samples', default=2**10, help='How many samples?')
+    parser.add_argument('-path', help='Save path', required=True)
+    parser.add_argument('-nmin', default=20, help='Min. number of vertices')
+    parser.add_argument('-nmax', default=40, help='Max. number of vertices')
+    parser.add_argument('-cmin', default=1, help='Min. connectivity')
+    parser.add_argument('-cmax', default=1, help='Max. connectivity')
+    parser.add_argument('-bins', default=10**6, help='Quantize edge weights in how many bins?')
+
+    # Parse arguments from command line
+    args = parser.parse_args()
+
+    if not os.path.isdir(vars(args)['path']):
+        print('Creating {} instances'.format(vars(args)['samples']), flush=True)
+        create_dataset(
+            vars(args)['nmin'], vars(args)['nmax'],
+            vars(args)['cmin'], vars(args)['cmax'],
+            bins=vars(args)['bins'],
+            samples=vars(args)['samples'],
+            path=vars(args)['path'],
+            dataset_type=vars(args)['type']
+        )
+    #end
+
 #end
