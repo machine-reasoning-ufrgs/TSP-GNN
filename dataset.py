@@ -17,12 +17,12 @@ def solve(Ma, Mw):
     STDOUT = 1
     STDERR = 2
 
-    write_graph(Ma,Mw,[],'tmp',int_weights=True)
+    write_graph(Ma,Mw,[],'tmp2',int_weights=True)
     redirector_stdout = Redirector(fd=STDOUT)
     redirector_stderr = Redirector(fd=STDERR)
     redirector_stderr.start()
     redirector_stdout.start()
-    solver = TSPSolver.from_tspfile('tmp')
+    solver = TSPSolver.from_tspfile('tmp2')
     solution = solver.solve(verbose=False)
     redirector_stderr.stop()
     redirector_stdout.stop()
@@ -132,7 +132,13 @@ def create_graph_random(n, bins, connectivity):
     # Enforce metric property
     for i in range(n):
         for j in range(n):
-            Mw[i,j] = nx.shortest_path_length(G,source=i,target=j,weight='weight')
+            if i != j:
+                Mw[i,j] = nx.shortest_path_length(G,source=i,target=j,weight='weight')
+            else:
+                Mw[i,j] = 0
+            #end
+        #end
+    #end
 
     # Check for metric property
     for i in range(n):
@@ -252,7 +258,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-seed', type=int, default=42, help='RNG seed for Python, Numpy and Tensorflow')
     parser.add_argument('-type', default='euc_2D', help='Which type of dataset? (euc_2D or random)')
-    parser.add_argument('-samples', default=2**10, help='How many samples?')
+    parser.add_argument('-samples', default=2**10, type=int, help='How many samples?')
     parser.add_argument('-path', help='Save path', required=True)
     parser.add_argument('-nmin', default=20, help='Min. number of vertices')
     parser.add_argument('-nmax', default=40, help='Max. number of vertices')
