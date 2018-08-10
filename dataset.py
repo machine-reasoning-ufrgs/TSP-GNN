@@ -260,8 +260,8 @@ if __name__ == '__main__':
     parser.add_argument('-type', default='euc_2D', help='Which type of dataset? (euc_2D or random)')
     parser.add_argument('-samples', default=2**10, type=int, help='How many samples?')
     parser.add_argument('-path', help='Save path', required=True)
-    parser.add_argument('-nmin', default=20, help='Min. number of vertices')
-    parser.add_argument('-nmax', default=40, help='Max. number of vertices')
+    parser.add_argument('-nmin', default=20, type=int, help='Min. number of vertices')
+    parser.add_argument('-nmax', default=40, type=int, help='Max. number of vertices')
     parser.add_argument('-cmin', default=1, help='Min. connectivity')
     parser.add_argument('-cmax', default=1, help='Max. connectivity')
     parser.add_argument('-bins', default=10**6, help='Quantize edge weights in how many bins?')
@@ -269,16 +269,14 @@ if __name__ == '__main__':
     # Parse arguments from command line
     args = parser.parse_args()
 
-    if not os.path.isdir(vars(args)['path']):
-        print('Creating {} instances'.format(vars(args)['samples']), flush=True)
-        create_dataset(
-            vars(args)['nmin'], vars(args)['nmax'],
-            vars(args)['cmin'], vars(args)['cmax'],
-            bins=vars(args)['bins'],
-            samples=vars(args)['samples'],
-            path=vars(args)['path'],
-            dataset_type=vars(args)['type']
-        )
-    #end
+    print('Creating {} instances'.format(vars(args)['samples']), flush=True)
+    create_dataset(
+        vars(args)['nmin'], vars(args)['nmax'],
+        vars(args)['cmin'], vars(args)['cmax'],
+        bins=vars(args)['bins'],
+        samples=vars(args)['samples'],
+        path=vars(args)['path'],
+        dataset_type=vars(args)['type']
+    )
 
 #end

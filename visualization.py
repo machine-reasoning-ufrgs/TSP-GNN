@@ -118,7 +118,7 @@ def plot_projections_through_time(n=20, target_cost_dev=0.025):
         sess.run( tf.global_variables_initializer() )
 
         # Restore saved weights
-        load_weights(sess,'./TSP-checkpoints-0.025/epoch=400.0')
+        load_weights(sess,'./decision-checkpoints-0.05/epoch=100.0')
 
         # Create instance
         instance = create_graph_euc_2D(n,bins,connectivity)
@@ -183,7 +183,7 @@ def process_instances():
         sess.run( tf.global_variables_initializer() )
 
         # Restore saved weights
-        load_weights(sess,'./TSP-checkpoints-0.025/epoch=400.0')
+        load_weights(sess,'./decision-checkpoints-0.05/epoch=100.0')
 
         # Create instance
         instance = create_graph_euc_2D(n,bins,connectivity)
@@ -198,13 +198,13 @@ def process_instances():
         print('Prediction: {}%'.format(round(100*predictions[0],1)))
 
         # Compute predicted route
-        predicted_route = [ edges[e] for e in extract_solution_outliers(n,edge_embeddings) ]
+        predicted_route = [ edges[e] for e in extract_solution_clusters(n,edge_embeddings) ]
         print(len(predicted_route))
 
-        for i,j in predicted_route:
-            plt.plot(nodes[[i,j],0],nodes[[i,j],1], c='black', zorder=1)
-        #end
-        plt.scatter(nodes[:,0],nodes[:,1], edgecolors='black', c='white', zorder=2)
+        #for i,j in predicted_route:
+        #    plt.plot(nodes[[i,j],0],nodes[[i,j],1], c='black', zorder=1)
+        ##end
+        #plt.scatter(nodes[:,0],nodes[:,1], edgecolors='black', c='white', zorder=2)
 
         # Compute embeddings 2D PCA projection
         edge_embeddings_pca = get_projections(edge_embeddings, 2)
@@ -215,7 +215,7 @@ def process_instances():
         bla = [ (p[0], p[1], Mw[edges[e]], e in route_edges_indices ) for e, p in enumerate( edge_embeddings_pca ) ]
         ble = [ (p, Mw[edges[e]], e in route_edges_indices ) for e, p in enumerate( edge_embeddings_pca1 ) ]
 
-        #plt.scatter( [p for p,w,r in ble], [w for p,w,r in ble],  edgecolors=['black' if r else 'white' for p,w,r in ble], c= [w for p,w,r in ble], cmap='jet')
+        plt.scatter( [p for p,w,r in ble], [w for p,w,r in ble],  edgecolors=['black' if r else 'white' for p,w,r in ble], c= [w for p,w,r in ble], cmap='jet')
         #plt.scatter( [p for p,_,_,_ in bla], [p for _,p,_,_ in bla], edgecolors=['black' if r else 'none' for _,_,_,r in bla], c= [w for _,_,w,_ in bla], cmap='jet')
         plt.show()
 
@@ -224,5 +224,5 @@ def process_instances():
 
 if __name__ == '__main__':
     process_instances()
-    #plot_projections_through_time(target_cost_dev=0.1)
+    #plot_projections_through_time(target_cost_dev=0.05)
 #end

@@ -7,7 +7,7 @@ import numpy as np
 from itertools import islice
 from functools import reduce
 
-from model import build_network
+from model_cost import build_network
 from dataset import create_dataset
 from instance_loader import InstanceLoader
 from util import load_weights, save_weights
@@ -25,7 +25,7 @@ def run_batch(sess, model, batch, batch_i, epoch_i, time_steps, train=False, ver
     feed_dict = {
         model['EV']: EV,
         model['W']: W,
-        model['C']: C,
+        model['C']: np.array([ C[sum(n_edges[:i])] for i in range(n_problems) ]),
         model['time_steps']: time_steps,
         model['route_exists']: route_exists,
         model['n_vertices']: n_vertices,
@@ -33,43 +33,43 @@ def run_batch(sess, model, batch, batch_i, epoch_i, time_steps, train=False, ver
     }
 
     if train:
-        outputs = [model['train_step'], model['loss'], model['acc'], model['predictions'], model['TP'], model['FP'], model['TN'], model['FN']]
+        outputs = [model['train_step'], model['loss'], model['predictions'], model['deviations']]
     else:
-        outputs = [model['loss'], model['acc'], model['predictions'], model['TP'], model['FP'], model['TN'], model['FN']]
+        outputs = [model['loss'], model['predictions'], model['deviations']]
     #end
 
     # Run model
-    loss, acc, predictions, TP, FP, TN, FN = sess.run(outputs, feed_dict = feed_dict)[-7:]
+    loss, predictions, deviations = sess.run(outputs, feed_dict = feed_dict)[-3:]
 
     if verbose:
         # Print stats
-        print('{train_or_test} Epoch {epoch_i} Batch {batch_i}\t|\t(n,m,batch size)=({n},{m},{batch_size})\t|\t(Loss,Acc)=({loss:.4f},{acc:.4f})\t|\tAvg. (Sat,Prediction)=({avg_sat:.4f},{avg_pred:.4f})'.format(
+        print('{train_or_test} Epoch {epoch_i} Batch {batch_i}\t|\t(n,m,batch size)=({n},{m},{batch_size})\t|\t(Loss,Deviation)=({loss:.4f},{dev:.4f})\t|\tAvg. Prediction, # Predicted =({avg_pred:.4f},{count_pred:.1f})'.format(
             train_or_test = 'Train' if train else 'Test',
             epoch_i = epoch_i,
             batch_i = batch_i,
             loss = loss,
-            acc = acc,
+            dev = np.mean(deviations),
             n = np.sum(n_vertices),
             m = np.sum(n_edges),
             batch_size = n_vertices.shape[0],
-            avg_sat = np.mean(route_exists),
-            avg_pred = np.mean(np.round(predictions))
+            avg_pred = np.mean(np.round(predictions)),
+            count_pred = np.sum(np.round(predictions))
             ),
             flush = True
         )
     #end
 
-    return loss, acc, np.mean(route_exists), np.mean(predictions), TP, FP, TN, FN
+    return loss, np.mean(deviations), np.mean(predictions)
 #end
 
-def summarize_epoch(epoch_i, loss, acc, sat, pred, train=False):
-    print('{train_or_test} Epoch {epoch_i} Average\t|\t(Loss,Acc)=({loss:.4f},{acc:.4f})\t|\tAvg. (Sat,Pred)=({avg_sat:.4f},{avg_pred:.4f})'.format(
+def summarize_epoch(epoch_i, loss, dev, pred, train=False):
+    print('{train_or_test} Epoch {epoch_i} Average\t|\t(Loss,Dev)=({loss:.4f},{dev:.4f})\t|\tAvg. Prediction, # Predicted=({avg_pred:.4f},{count_pred:.1f})'.format(
         train_or_test = 'Train' if train else 'Test',
         epoch_i = epoch_i,
         loss = np.mean(loss),
-        acc = np.mean(acc),
-        avg_sat = np.mean(sat),
-        avg_pred = np.mean(pred)
+        dev = np.mean(dev),
+        avg_pred = np.mean(pred),
+        count_pred = np.sum(pred)
         ),
         flush = True
     )
@@ -106,7 +106,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-d', default=64, type=int, help='Embedding size for vertices and edges')
     parser.add_argument('-timesteps', default=25, type=int, help='# Timesteps')
-    parser.add_argument('-dev', default=0.05, type=float, help='Target cost deviation')
+    parser.add_argument('-dev', default=0, type=float, help='Target cost deviation')
     parser.add_argument('-epochs', default=32, type=int, help='Training epochs')
     parser.add_argument('-batchsize', default=16, type=int, help='Batch size')
     parser.add_argument('-seed', type=int, default=42, help='RNG seed for Python, Numpy and Tensorflow')
@@ -173,56 +173,46 @@ if __name__ == '__main__':
         sess.run( tf.global_variables_initializer() )
 
         # Restore saved weights
-        if load_checkpoints: load_weights(sess,'./decision-checkpoints-{target_cost_dev}'.format(target_cost_dev=target_cost_dev));
+        if load_checkpoints: load_weights(sess,'./cost-checkpoints-{target_cost_dev}'.format(target_cost_dev=target_cost_dev));
 
-        with open('decision-log-{target_cost_dev}.dat'.format(target_cost_dev=target_cost_dev),'w') as logfile:
+        with open('cost-log-{target_cost_dev}.dat'.format(target_cost_dev=target_cost_dev),'w') as logfile:
             # Run for a number of epochs
             for epoch_i in np.arange(epochs_n):
 
                 train_loader.reset()
                 test_loader.reset()
 
-                train_stats = { k:np.zeros(train_params['batches_per_epoch']) for k in ['loss','acc','sat','pred','TP','FP','TN','FN'] }
-                test_stats = { k:np.zeros(test_params['batches_per_epoch']) for k in ['loss','acc','sat','pred','TP','FP','TN','FN'] }
+                train_stats = { k:np.zeros(train_params['batches_per_epoch']) for k in ['loss','dev','pred'] }
+                test_stats = { k:np.zeros(test_params['batches_per_epoch']) for k in ['loss','dev','pred'] }
 
                 print("Training model...", flush=True)
                 for (batch_i, batch) in islice(enumerate(train_loader.get_batches(batch_size, target_cost_dev)), train_params['batches_per_epoch']):
-                    train_stats['loss'][batch_i], train_stats['acc'][batch_i], train_stats['sat'][batch_i], train_stats['pred'][batch_i], train_stats['TP'][batch_i], train_stats['FP'][batch_i], train_stats['TN'][batch_i], train_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=True, verbose=True)
+                    train_stats['loss'][batch_i], train_stats['dev'][batch_i], train_stats['pred'][batch_i], = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=True, verbose=True)
                 #end
-                summarize_epoch(epoch_i,train_stats['loss'],train_stats['acc'],train_stats['sat'],train_stats['pred'],train=True)
+                summarize_epoch(epoch_i,train_stats['loss'],train_stats['dev'],train_stats['pred'],train=True)
 
                 print("Testing model...", flush=True)
                 for (batch_i, batch) in islice(enumerate(test_loader.get_batches(batch_size, target_cost_dev)), test_params['batches_per_epoch']):
-                    test_stats['loss'][batch_i], test_stats['acc'][batch_i], test_stats['sat'][batch_i], test_stats['pred'][batch_i], test_stats['TP'][batch_i], test_stats['FP'][batch_i], test_stats['TN'][batch_i], test_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=False, verbose=True)
+                    test_stats['loss'][batch_i], test_stats['dev'][batch_i], test_stats['pred'][batch_i], = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=False, verbose=True)
                 #end
-                summarize_epoch(epoch_i,test_stats['loss'],test_stats['acc'],test_stats['sat'],test_stats['pred'],train=False)
+                summarize_epoch(epoch_i,train_stats['loss'],train_stats['dev'],train_stats['pred'],train=False)
 
                 # Save weights
-                savepath = './decision-checkpoints-{target_cost_dev}/epoch={epoch}'.format(target_cost_dev=target_cost_dev,epoch=100*np.ceil((epoch_i+1)/100))
+                savepath = './cost-checkpoints-{target_cost_dev}/epoch={epoch}'.format(target_cost_dev=target_cost_dev,epoch=100*np.ceil((epoch_i+1)/100))
                 os.makedirs(savepath, exist_ok=True)
                 if save_checkpoints: save_weights(sess, savepath);
 
-                logfile.write('{epoch_i} {trloss} {tracc} {trsat} {trpred} {trTP} {trFP} {trTN} {trFN} {tstloss} {tstacc} {tstsat} {tstpred} {tstTP} {tstFP} {tstTN} {tstFN}\n'.format(
+                logfile.write('{epoch_i} {trloss} {trdev} {trpred} {tstloss} {tstdev} {tstpred}\n'.format(
                     
                     epoch_i = epoch_i,
 
                     trloss = np.mean(train_stats['loss']),
-                    tracc = np.mean(train_stats['acc']),
-                    trsat = np.mean(train_stats['sat']),
+                    trdev = np.mean(train_stats['dev']),
                     trpred = np.mean(train_stats['pred']),
-                    trTP = np.mean(train_stats['TP']),
-                    trFP = np.mean(train_stats['FP']),
-                    trTN = np.mean(train_stats['TN']),
-                    trFN = np.mean(train_stats['FN']),
 
-                    tstloss = np.mean(test_stats['loss']),
-                    tstacc = np.mean(test_stats['acc']),
-                    tstsat = np.mean(test_stats['sat']),
-                    tstpred = np.mean(test_stats['pred']),
-                    tstTP = np.mean(train_stats['TP']),
-                    tstFP = np.mean(train_stats['FP']),
-                    tstTN = np.mean(train_stats['TN']),
-                    tstFN = np.mean(train_stats['FN']),
+                    tstloss = np.mean(train_stats['loss']),
+                    tstdev = np.mean(train_stats['dev']),
+                    tstpred = np.mean(train_stats['pred']),
                     )
                 )
                 logfile.flush()
