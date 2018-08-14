@@ -17,12 +17,12 @@ def solve(Ma, Mw):
     STDOUT = 1
     STDERR = 2
 
-    write_graph(Ma,Mw,[],'tmp2',int_weights=True)
+    write_graph(Ma,Mw,[],'tmp',int_weights=True)
     redirector_stdout = Redirector(fd=STDOUT)
     redirector_stderr = Redirector(fd=STDERR)
     redirector_stderr.start()
     redirector_stdout.start()
-    solver = TSPSolver.from_tspfile('tmp2')
+    solver = TSPSolver.from_tspfile('tmp')
     solution = solver.solve(verbose=False)
     redirector_stderr.stop()
     redirector_stdout.stop()
@@ -79,7 +79,7 @@ def create_graph_euc_2D(n, bins, connectivity):
     if route == []: print('Unsolvable');
 
     # Check if route contains edges which are not in the graph and add them
-    for (i,j) in [ (i,j) for (i,j) in zip(route,route[1:]+route[0:1]) if Ma[i,j] == 0 ]:
+    for (i,j) in [ (i,j) for (i,j) in zip(route,route[1:]) if Ma[i,j] == 0 ]:
         Ma[i,j] = Ma[j,i] = 1
         Mw[i,j] = Mw[j,i] = 1
     #end
@@ -166,7 +166,7 @@ def create_graph_random(n, bins, connectivity):
     if route == []: print('Unsolvable');
 
     # Check if route contains edges which are not in the graph and add them
-    for (i,j) in [ (i,j) for (i,j) in zip(route,route[1:]+route[0:1]) if Ma[i,j] == 0 ]:
+    for (i,j) in [ (i,j) for (i,j) in zip(route,route[1:]) if Ma[i,j] == 0 ]:
         Ma[i,j] = Ma[j,i] = 1
         Mw[i,j] = Mw[j,i] = 1
     #end

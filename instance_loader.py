@@ -54,7 +54,7 @@ class InstanceLoader(object):
             edges = list(zip(np.nonzero(Ma)[0], np.nonzero(Ma)[1]))
 
             # Get the list of edges in the optimal TSP route for this graph
-            route_edges = [ (min(x,y),max(x,y)) for (x,y) in zip(route,route[1:]) ]
+            route_edges = [ (min(x,y),max(x,y)) for (x,y) in zip(route,route[1:]+route[:1]) ]
 
             # Compute the optimal (normalized) TSP cost for this graph
             cost = sum([ Mw[x,y] for (x,y) in route_edges ]) / n

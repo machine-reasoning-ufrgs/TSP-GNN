@@ -157,25 +157,25 @@ if __name__ == '__main__':
     ensure_datasets(batch_size, train_params, test_params)
 
     # Create train and test loaders
-    train_loader    = InstanceLoader("train")
-    test_loader     = InstanceLoader("test")
+    train_loader    = InstanceLoader('train')
+    test_loader     = InstanceLoader('test')
 
     # Build model
-    print("Building model ...", flush=True)
+    print('Building model ...', flush=True)
     GNN = build_network(d)
 
     # Disallow GPU use
-    config = tf.ConfigProto( device_count = {"GPU":0})
+    config = tf.ConfigProto( device_count = {'GPU':0})
     with tf.Session(config=config) as sess:
 
         # Initialize global variables
-        print("Initializing global variables ... ", flush=True)
+        print('Initializing global variables ... ', flush=True)
         sess.run( tf.global_variables_initializer() )
 
         # Restore saved weights
-        if load_checkpoints: load_weights(sess,'./decision-checkpoints-{target_cost_dev}'.format(target_cost_dev=target_cost_dev));
+        if load_checkpoints: load_weights(sess,'training-0.02-small/checkpoints-{target_cost_dev}'.format(target_cost_dev=target_cost_dev));
 
-        with open('decision-log-{target_cost_dev}.dat'.format(target_cost_dev=target_cost_dev),'w') as logfile:
+        with open('training-0.02-small/log.dat'.format(target_cost_dev=target_cost_dev),'w') as logfile:
             # Run for a number of epochs
             for epoch_i in np.arange(epochs_n):
 
@@ -185,20 +185,20 @@ if __name__ == '__main__':
                 train_stats = { k:np.zeros(train_params['batches_per_epoch']) for k in ['loss','acc','sat','pred','TP','FP','TN','FN'] }
                 test_stats = { k:np.zeros(test_params['batches_per_epoch']) for k in ['loss','acc','sat','pred','TP','FP','TN','FN'] }
 
-                print("Training model...", flush=True)
+                print('Training model...', flush=True)
                 for (batch_i, batch) in islice(enumerate(train_loader.get_batches(batch_size, target_cost_dev)), train_params['batches_per_epoch']):
                     train_stats['loss'][batch_i], train_stats['acc'][batch_i], train_stats['sat'][batch_i], train_stats['pred'][batch_i], train_stats['TP'][batch_i], train_stats['FP'][batch_i], train_stats['TN'][batch_i], train_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=True, verbose=True)
                 #end
                 summarize_epoch(epoch_i,train_stats['loss'],train_stats['acc'],train_stats['sat'],train_stats['pred'],train=True)
 
-                print("Testing model...", flush=True)
+                print('Testing model...', flush=True)
                 for (batch_i, batch) in islice(enumerate(test_loader.get_batches(batch_size, target_cost_dev)), test_params['batches_per_epoch']):
                     test_stats['loss'][batch_i], test_stats['acc'][batch_i], test_stats['sat'][batch_i], test_stats['pred'][batch_i], test_stats['TP'][batch_i], test_stats['FP'][batch_i], test_stats['TN'][batch_i], test_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=False, verbose=True)
                 #end
                 summarize_epoch(epoch_i,test_stats['loss'],test_stats['acc'],test_stats['sat'],test_stats['pred'],train=False)
 
                 # Save weights
-                savepath = './decision-checkpoints-{target_cost_dev}/epoch={epoch}'.format(target_cost_dev=target_cost_dev,epoch=100*np.ceil((epoch_i+1)/100))
+                savepath = 'training-0.02-small/checkpoints-{target_cost_dev}/epoch={epoch}'.format(target_cost_dev=target_cost_dev,epoch=100*np.ceil((epoch_i+1)/100))
                 os.makedirs(savepath, exist_ok=True)
                 if save_checkpoints: save_weights(sess, savepath);
 
