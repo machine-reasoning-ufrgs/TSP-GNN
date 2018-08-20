@@ -13,6 +13,8 @@ from sklearn.preprocessing import StandardScaler, normalize
 from sklearn.decomposition import PCA
 from matplotlib import pyplot as plt
 
+from scipy.interpolate import interp1d
+
 def get_k_cluster(embeddings, k):
 
     # Perform k clustering
@@ -222,7 +224,83 @@ def process_instances():
     #end
 #end
 
+def draw_solutions():
+
+    # Init figure
+    f, axes = plt.subplots(2,2, dpi=200, sharex=True, sharey=True, figsize=(4,4))
+
+    sizes = [50,62,75,100]
+    colors = ['red','green','blue','black']
+
+    f.patch.set_visible(False)
+
+    for k,ax in enumerate(axes.flatten()):
+        n = sizes[k]
+        # Create instance
+        instance = create_graph_euc_2D(n,10**6,1)
+        Ma,Mw,route,nodes = instance
+        edges = list(zip(np.nonzero(Ma)[0],np.nonzero(Ma)[1]))
+
+        ax.tick_params(
+            axis='both',
+            which='both',
+            bottom=False,
+            top=False,
+            left=False,
+            right=False,
+            labelbottom=False,
+            labelleft=False
+        )
+        ax.axis('off')
+        ax.axis('equal')
+        ax.set(adjustable='box-forced', aspect='equal')
+
+        ax.plot(nodes[route+route[:1],0], nodes[route+route[:1],1], c=colors[k], linewidth=0.25, zorder=1)
+
+        ax.scatter(nodes[:,0],nodes[:,1], s=20, c='white', edgecolors='black', zorder=2, linewidth=0.25)
+
+    #end
+
+    plt.tight_layout(pad=0, w_pad=0, h_pad=0)
+    plt.savefig('route-examples.eps', format='eps')
+#end
+
+def plot_training():
+
+    data = open('training loss=decision dev=0.05 n=20-40/decision-log-0.05.dat').readlines()
+    data = np.array([ [float(x) for x in line.split()] for line in data ])
+
+    epoch = data[:,0]
+
+    loss_train = data[:,1]
+    acc_train = 100*data[:,2]
+
+    loss_test = data[:,9]
+    acc_test = 100*data[:,10]
+
+    fig, ax1 = plt.subplots(dpi=100)
+
+    color = 'tab:red'
+    ax1.set_xlabel('Epoch', fontsize=16)
+    ax1.set_ylabel('Loss', fontsize=16)
+    ax1.plot(epoch[:350], loss_train[:350], color=color)
+    ax1.tick_params(axis='y')
+
+    ax2 = ax1.twinx()
+
+    color = 'tab:blue'
+    ax2.set_ylabel('Acc (%)', fontsize=16)
+    ax2.plot(epoch[:350], acc_train[:350], color=color)
+    ax2.tick_params(axis='y')
+    ax2.grid(linestyle='-', axis='y')
+
+    plt.savefig('training-decision.eps',format='eps')
+
+#end
+
 if __name__ == '__main__':
-    process_instances()
+    #process_instances()
     #plot_projections_through_time(target_cost_dev=0.05)
+    #draw_solutions()
+    plot_training()
 #end
