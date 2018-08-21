@@ -157,8 +157,8 @@ def build_network(d):
     # Compute True Positives, False Positives, True Negatives, False Negatives, accuracy
     GNN['TP'] = tf.reduce_sum(tf.multiply(route_exists, tf.cast(tf.equal(route_exists, tf.round(GNN['predictions'])), tf.float32)))
     GNN['FP'] = tf.reduce_sum(tf.multiply(route_exists, tf.cast(tf.not_equal(route_exists, tf.round(GNN['predictions'])), tf.float32)))
-    GNN['TN'] = tf.reduce_sum(tf.multiply(1-route_exists, tf.cast(tf.equal(route_exists, tf.round(GNN['predictions'])), tf.float32)))
-    GNN['FN'] = tf.reduce_sum(tf.multiply(1-route_exists, tf.cast(tf.not_equal(route_exists, tf.round(GNN['predictions'])), tf.float32)))
+    GNN['TN'] = tf.reduce_sum(tf.multiply(tf.ones_like(route_exists)-route_exists, tf.cast(tf.equal(route_exists, tf.round(GNN['predictions'])), tf.float32)))
+    GNN['FN'] = tf.reduce_sum(tf.multiply(tf.ones_like(route_exists)-route_exists, tf.cast(tf.not_equal(route_exists, tf.round(GNN['predictions'])), tf.float32)))
     GNN['acc'] = tf.reduce_mean(tf.cast(tf.equal(route_exists, tf.round(GNN['predictions'])), tf.float32))
 
     # Define loss
