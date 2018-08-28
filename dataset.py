@@ -106,7 +106,7 @@ def shortest_paths(n, Ma, Mw):
     #end
 #end
 
-def create_graph_random(n, bins, connectivity):
+def create_graph_random_metric(n, bins, connectivity):
     """
         Creates a graph 'n' vertices and the given connectivity. Edge weights
         are initialized randomly.
@@ -146,6 +146,65 @@ def create_graph_random(n, bins, connectivity):
             for k in range(n):
                 if Mw[i,j] + Mw[j,k] < Mw[i,k]:
                     print("Graph not metric!")
+
+    # Enforce symmetry (but it does not matter because only edges (i,j) with i < j are added to the instance)
+    for i in range(n):
+        for j in range(i+1,n):
+            Mw[j,i] = Mw[i,j]
+
+    # Add huge costs to inexistent edges to simulate a disconnected instance
+    for i in range(n):
+        for j in range(n):
+            if Ma[i,j] == 0:
+                Mw[i,j] = n+1
+
+    # Rescale and round weights, quantizing them into 'bins' integer bins
+    Mw = np.round(bins * Mw)
+
+    # Solve
+    route = solve(Ma,Mw)
+    if route == []: print('Unsolvable');
+
+    # Check if route contains edges which are not in the graph and add them
+    for (i,j) in [ (i,j) for (i,j) in zip(route,route[1:]) if Ma[i,j] == 0 ]:
+        Ma[i,j] = Ma[j,i] = 1
+        Mw[i,j] = Mw[j,i] = 1
+    #end
+
+    # Remove huge costs from inexistent edges to simulate a disconnected instance
+    for i in range(n):
+        for j in range(n):
+            if Ma[i,j] == 0:
+                Mw[i,j] = 0
+
+    # Rescale weights such that they are all ∈ [0,1]
+    Mw = Mw / bins
+
+    return np.triu(Ma), Mw, ([] if route is None else route), []
+#end
+
+def create_graph_random(n, bins, connectivity):
+    """
+        Creates a graph 'n' vertices and the given connectivity. Edge weights
+        are initialized randomly.
+    """
+
+    # Build an adjacency matrix with given connectivity
+    Ma = (np.random.rand(n,n) < connectivity).astype(int)
+    for i in range(n):
+        Ma[i,i] = 0
+        for j in range(i+1,n):
+            Ma[i,j] = Ma[j,i]
+        #end
+    #end
+    
+    # Build a weight matrix
+    Mw = np.random.rand(n,n)
+
+    # Create networkx graph G
+    G = nx.Graph()
+    G.add_nodes_from(range(n))
+    G.add_edges_from([ (i,j,{'weight':Mw[i,j]}) for i in range(n) for j in range(n) ])
 
     # Enforce symmetry (but it does not matter because only edges (i,j) with i < j are added to the instance)
     for i in range(n):
@@ -278,5 +337,4 @@ if __name__ == '__main__':
         path=vars(args)['path'],
         dataset_type=vars(args)['type']
     )
-
 #end

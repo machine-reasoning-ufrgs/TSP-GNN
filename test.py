@@ -13,8 +13,8 @@ if __name__ == '__main__':
     # Define argument parser
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-d', default=64, type=int, help='Embedding size for vertices and edges')
-    parser.add_argument('-time_steps', default=25, type=int, help='# Timesteps')
-    parser.add_argument('-dev', default=0.025, type=float, help='Target cost deviation')
+    parser.add_argument('-time_steps', default=32, type=int, help='# Timesteps')
+    parser.add_argument('-dev', default=0.02, type=float, help='Target cost deviation')
     parser.add_argument('-instances', default='test', help='Path for the test instances')
     parser.add_argument('-checkpoint', default='TSP-checkpoints-0.025/epoch=500.0', help='Path for the checkpoint of the trained model')
 
@@ -48,7 +48,7 @@ if __name__ == '__main__':
         stats = { k:np.zeros(n_instances) for k in ['loss','acc','sat','pred','TP','FP','TN','FN'] }
 
         # Create batches of size 1
-        for (batch_i, batch) in enumerate(loader.get_batches(1, target_cost_dev)):
+        for (batch_i, batch) in enumerate(loader.get_batches_diff(1, target_cost_dev)):
             stats['loss'][batch_i], stats['acc'][batch_i], stats['sat'][batch_i], stats['pred'][batch_i], stats['TP'][batch_i], stats['FP'][batch_i], stats['TN'][batch_i], stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, 0, time_steps, train=False, verbose=True)
         #end
 

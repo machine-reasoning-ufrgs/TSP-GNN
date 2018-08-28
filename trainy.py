@@ -76,11 +76,8 @@ def summarize_epoch(epoch_i, loss, acc, sat, pred, train=False):
 #end
 
 def ensure_datasets(batch_size, train_params, test_params):
-    """
-        Subroutine to ensure that train and test datasets exist
-    """
     
-    if not os.path.isdir('instances/train'):
+    if not os.path.isdir('train'):
         print('Creating {} Train instances'.format(train_params['samples']), flush=True)
         create_dataset(
             train_params['n_min'], train_params['n_max'],
@@ -91,7 +88,7 @@ def ensure_datasets(batch_size, train_params, test_params):
             dataset_type=train_params['dataset_type'])
     #end
 
-    if not os.path.isdir('instances/test'):
+    if not os.path.isdir('test'):
         print('Creating {} Test instances'.format(test_params['samples']), flush=True)
         create_dataset(
             test_params['n_min'], test_params['n_max'],
@@ -110,57 +107,31 @@ if __name__ == '__main__':
     parser.add_argument('-d', default=64, type=int, help='Embedding size for vertices and edges')
     parser.add_argument('-timesteps', default=32, type=int, help='# Timesteps')
     parser.add_argument('-dev', default=0.02, type=float, help='Target cost deviation')
+    parser.add_argument('--devs', nargs='+', type=float, help='List of deviations to use instead of +/-dev')
+    parser.add_argument('--tdevs', nargs='+', type=float, help='List of deviations to use for testing')
     parser.add_argument('-epochs', default=10000, type=int, help='Training epochs')
-    parser.add_argument('-batchsize', default=8, type=int, help='Batch size')
+    parser.add_argument('-batchsize', default=16, type=int, help='Batch size')
     parser.add_argument('-seed', type=int, default=42, help='RNG seed for Python, Numpy and Tensorflow')
     parser.add_argument('--load', const=True, default=False, action='store_const', help='Load model checkpoint?')
     parser.add_argument('--save', const=True, default=False, action='store_const', help='Save model?')
     parser.add_argument('-dataset_type', default='euc_2D', help='Which type of dataset? (euc_2D or random)')
+    # Use like:
+    # python arg.py -l 1234 2345 3456 4567
 
     # Parse arguments from command line
     args = parser.parse_args()
-
-    print('\n-------------------------------------------\n')
-
-    if vars(args)['load']:
-        print('Found the following training setups:')
-        for i,directory in enumerate(os.listdir('training')):
-            print('\t{i}. {dir}'.format(i=i+1,dir=directory))
-        #end
-        n = len(os.listdir('training'))
-        option = input('\tLoad checkpoint from which training setup? ')
-        while not option.isdigit() or int(option)-1 not in range(n):
-             option = input('Invalid option. Type an integer 1 <= x <= {n}: '.format(n=n))
-        #end
-        print('Found the following checkpoints:')
-        for i,directory in enumerate(os.listdir('training/{}/checkpoints'.format(os.listdir('training')[int(option)-1]))):
-            print('\t{i}. {dir}'.format(i=i+1,dir=directory))
-        #end
-        n2 = len(os.listdir('training/{}/checkpoints'.format(os.listdir('training')[int(option)-1])))
-        option2 = input('\tLoad which checkpoint? ')
-        while not option2.isdigit() or int(option2)-1 not in range(n2):
-             option2 = input('Invalid option. Type an integer 1 <= x <= {n}: '.format(n=n2))
-        #end
-
-        loadpath = 'training/{}/checkpoints/{}'.format(
-            os.listdir('training')[int(option)-1],
-            os.listdir('training/{}/checkpoints'.format(os.listdir('training')[int(option)-1]))[int(option2)-1]
-            )
-
-        print('Done! Load path: {}'.format(loadpath))
-
-        print('\n-------------------------------------------\n')
-    #end
 
     # Set RNG seed for Python, Numpy and Tensorflow
     random.seed(vars(args)['seed'])
     np.random.seed(vars(args)['seed'])
     tf.set_random_seed(vars(args)['seed'])
-
+    
     # Setup parameters
     d                       = vars(args)['d']
     time_steps              = vars(args)['timesteps']
-    dev                     = vars(args)['dev']
+    target_cost_devs        = [ -vars(args)['dev'], vars(args)['dev'] ] if vars(args)['devs'] is None else vars(args)['devs']
+    str_target_cost_devs    = str(vars(args)['dev']) if vars(args)['devs'] is None else ",".join(map(str,sorted(target_cost_devs)))
+    test_target_cost_devs   = target_cost_devs if vars(args)['tdevs'] is None else vars(args)['tdevs']
     epochs_n                = vars(args)['epochs']
     batch_size              = vars(args)['batchsize']
     load_checkpoints        = vars(args)['load']
@@ -192,8 +163,8 @@ if __name__ == '__main__':
     ensure_datasets(batch_size, train_params, test_params)
 
     # Create train and test loaders
-    train_loader    = InstanceLoader('instances/train')
-    test_loader     = InstanceLoader('instances/test')
+    train_loader    = InstanceLoader('train')
+    test_loader     = InstanceLoader('test')
 
     # Build model
     print('Building model ...', flush=True)
@@ -201,23 +172,16 @@ if __name__ == '__main__':
 
     # Disallow GPU use
     config = tf.ConfigProto( device_count = {'GPU':0})
-    with tf.Session() as sess:
+    with tf.Session(config=config) as sess:
 
         # Initialize global variables
         print('Initializing global variables ... ', flush=True)
         sess.run( tf.global_variables_initializer() )
 
         # Restore saved weights
-        if load_checkpoints: load_weights(sess,loadpath);
+        if load_checkpoints: load_weights(sess,'training-0.02-small/checkpoints/epoch=2000'.format(target_cost_dev=str_target_cost_devs));
 
-        if not os.path.isdir('training'):
-            os.makedirs('training')
-        #end
-        if not os.path.isdir('training/dev={dev}'.format(dev=dev)):
-            os.makedirs('training/dev={dev}'.format(dev=dev))
-        #end
-
-        with open('training/dev={dev}/log.dat'.format(dev=dev),'w') as logfile:
+        with open('re-training/log.dat'.format(dev=str_target_cost_devs ),'w') as logfile:
             # Run for a number of epochs
             for epoch_i in np.arange(epochs_n):
 
@@ -228,19 +192,19 @@ if __name__ == '__main__':
                 test_stats = { k:np.zeros(test_params['batches_per_epoch']) for k in ['loss','acc','sat','pred','TP','FP','TN','FN'] }
 
                 print('Training model...', flush=True)
-                for (batch_i, batch) in islice(enumerate(train_loader.get_batches_diff(batch_size, dev)), train_params['batches_per_epoch']):
+                for (batch_i, batch) in islice(enumerate(train_loader.get_batches_with_devs(batch_size, target_cost_devs)), train_params['batches_per_epoch']):
                     train_stats['loss'][batch_i], train_stats['acc'][batch_i], train_stats['sat'][batch_i], train_stats['pred'][batch_i], train_stats['TP'][batch_i], train_stats['FP'][batch_i], train_stats['TN'][batch_i], train_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=True, verbose=True)
                 #end
                 summarize_epoch(epoch_i,train_stats['loss'],train_stats['acc'],train_stats['sat'],train_stats['pred'],train=True)
 
                 print('Testing model...', flush=True)
-                for (batch_i, batch) in islice(enumerate(test_loader.get_batches_diff(batch_size, dev)), test_params['batches_per_epoch']):
+                for (batch_i, batch) in islice(enumerate(test_loader.get_batches_with_devs(batch_size, test_target_cost_devs)), test_params['batches_per_epoch']):
                     test_stats['loss'][batch_i], test_stats['acc'][batch_i], test_stats['sat'][batch_i], test_stats['pred'][batch_i], test_stats['TP'][batch_i], test_stats['FP'][batch_i], test_stats['TN'][batch_i], test_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=False, verbose=True)
                 #end
                 summarize_epoch(epoch_i,test_stats['loss'],test_stats['acc'],test_stats['sat'],test_stats['pred'],train=False)
 
                 # Save weights
-                savepath = 'training/dev={dev}/checkpoints/epoch={epoch}'.format(dev=dev,epoch=round(100*np.ceil((epoch_i+1)/100)))
+                savepath = 're-training/checkpoints/epoch={epoch}'.format(dev=str_target_cost_devs,epoch=round(100*np.ceil((epoch_i+1)/100)))
                 os.makedirs(savepath, exist_ok=True)
                 if save_checkpoints: save_weights(sess, savepath);
 
