@@ -196,7 +196,7 @@ if __name__ == '__main__':
     GNN = build_network(d)
 
     # Disallow GPU use
-    config = tf.ConfigProto( device_count = {'GPU':0})
+    #config = tf.ConfigProto( device_count = {'GPU':0})
     with tf.Session() as sess:
 
         # Initialize global variables
@@ -224,13 +224,13 @@ if __name__ == '__main__':
                 test_stats = { k:np.zeros(test_params['batches_per_epoch']) for k in ['loss','acc','sat','pred','TP','FP','TN','FN'] }
 
                 print('Training model...', flush=True)
-                for (batch_i, batch) in islice(enumerate(train_loader.get_batches(batch_size, dev)), train_params['batches_per_epoch']):
+                for (batch_i, batch) in islice(enumerate(train_loader.get_batches(batch_size, dev, training_mode='relational')), train_params['batches_per_epoch']):
                     train_stats['loss'][batch_i], train_stats['acc'][batch_i], train_stats['sat'][batch_i], train_stats['pred'][batch_i], train_stats['TP'][batch_i], train_stats['FP'][batch_i], train_stats['TN'][batch_i], train_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=True, verbose=True)
                 #end
                 summarize_epoch(epoch_i,train_stats['loss'],train_stats['acc'],train_stats['sat'],train_stats['pred'],train=True)
 
                 print('Testing model...', flush=True)
-                for (batch_i, batch) in islice(enumerate(test_loader.get_batches(batch_size, dev)), test_params['batches_per_epoch']):
+                for (batch_i, batch) in islice(enumerate(test_loader.get_batches(batch_size, dev, training_mode='relational')), test_params['batches_per_epoch']):
                     test_stats['loss'][batch_i], test_stats['acc'][batch_i], test_stats['sat'][batch_i], test_stats['pred'][batch_i], test_stats['TP'][batch_i], test_stats['FP'][batch_i], test_stats['TN'][batch_i], test_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=False, verbose=True)
                 #end
                 summarize_epoch(epoch_i,test_stats['loss'],test_stats['acc'],test_stats['sat'],test_stats['pred'],train=False)

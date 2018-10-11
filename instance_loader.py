@@ -284,7 +284,7 @@ class InstanceLoader(object):
     #end
     """
 
-    def get_batches(self, batch_size, dev):
+    def get_batches(self, batch_size, dev, training_mode='deviation'):
         for i in range( len(self.filenames) // batch_size ):
             instances = list(self.get_instances(batch_size))
             yield InstanceLoader.create_batch(instances, dev=dev)
