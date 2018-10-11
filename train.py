@@ -84,22 +84,20 @@ def ensure_datasets(batch_size, train_params, test_params):
         print('Creating {} Train instances'.format(train_params['samples']), flush=True)
         create_dataset(
             train_params['n_min'], train_params['n_max'],
-            train_params['conn_min'], train_params['conn_max'],
-            bins=train_params['bins'],
+            path='instances/train',
+            conn_min=train_params['conn_min'], conn_max=train_params['conn_max'],
             samples=train_params['samples'],
-            path='train',
-            dataset_type=train_params['dataset_type'])
+            distribution=train_params['distribution'])
     #end
 
     if not os.path.isdir('instances/test'):
         print('Creating {} Test instances'.format(test_params['samples']), flush=True)
         create_dataset(
             test_params['n_min'], test_params['n_max'],
-            test_params['conn_min'], test_params['conn_max'],
-            bins=test_params['bins'],
-            samples=test_params['samples'],
-            path='test',
-            dataset_type=train_params['dataset_type'])
+            path='instances/test',
+            conn_min=train_params['conn_min'], conn_max=train_params['conn_max'],
+            samples=train_params['samples'],
+            distribution=train_params['distribution'])
     #end
 #end
 
@@ -115,7 +113,7 @@ if __name__ == '__main__':
     parser.add_argument('-seed', type=int, default=42, help='RNG seed for Python, Numpy and Tensorflow')
     parser.add_argument('--load', const=True, default=False, action='store_const', help='Load model checkpoint?')
     parser.add_argument('--save', const=True, default=False, action='store_const', help='Save model?')
-    parser.add_argument('-dataset_type', default='euc_2D', help='Which type of dataset? (euc_2D or random)')
+    parser.add_argument('-distribution', default='euc_2D', help='From which distribution to sample training instances (euc_2D, random, random_metric or diff_edge)')
 
     # Parse arguments from command line
     args = parser.parse_args()
@@ -171,10 +169,9 @@ if __name__ == '__main__':
         'n_max': 40,
         'conn_min': 1,
         'conn_max': 1,
-        'bins': 10**6,
         'batches_per_epoch': 128,
-        'samples': 2**20,
-        'dataset_type': vars(args)['dataset_type']
+        'samples': 2**15,
+        'distribution': vars(args)['distribution']
     }
 
     test_params = {
@@ -182,10 +179,9 @@ if __name__ == '__main__':
         'n_max': train_params['n_max'],
         'conn_min': 1,
         'conn_max': 1,
-        'bins': 10**6,
         'batches_per_epoch': 32,
-        'samples': 1024,
-        'dataset_type': vars(args)['dataset_type']
+        'samples': 2**10,
+        'distribution': vars(args)['distribution']
     }
     
     # Ensure that train and test datasets exist and create if inexistent
@@ -228,13 +224,13 @@ if __name__ == '__main__':
                 test_stats = { k:np.zeros(test_params['batches_per_epoch']) for k in ['loss','acc','sat','pred','TP','FP','TN','FN'] }
 
                 print('Training model...', flush=True)
-                for (batch_i, batch) in islice(enumerate(train_loader.get_batches_diff(batch_size, dev)), train_params['batches_per_epoch']):
+                for (batch_i, batch) in islice(enumerate(train_loader.get_batches(batch_size, dev)), train_params['batches_per_epoch']):
                     train_stats['loss'][batch_i], train_stats['acc'][batch_i], train_stats['sat'][batch_i], train_stats['pred'][batch_i], train_stats['TP'][batch_i], train_stats['FP'][batch_i], train_stats['TN'][batch_i], train_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=True, verbose=True)
                 #end
                 summarize_epoch(epoch_i,train_stats['loss'],train_stats['acc'],train_stats['sat'],train_stats['pred'],train=True)
 
                 print('Testing model...', flush=True)
-                for (batch_i, batch) in islice(enumerate(test_loader.get_batches_diff(batch_size, dev)), test_params['batches_per_epoch']):
+                for (batch_i, batch) in islice(enumerate(test_loader.get_batches(batch_size, dev)), test_params['batches_per_epoch']):
                     test_stats['loss'][batch_i], test_stats['acc'][batch_i], test_stats['sat'][batch_i], test_stats['pred'][batch_i], test_stats['TP'][batch_i], test_stats['FP'][batch_i], test_stats['TN'][batch_i], test_stats['FN'][batch_i] = run_batch(sess, GNN, batch, batch_i, epoch_i, time_steps, train=False, verbose=True)
                 #end
                 summarize_epoch(epoch_i,test_stats['loss'],test_stats['acc'],test_stats['sat'],test_stats['pred'],train=False)

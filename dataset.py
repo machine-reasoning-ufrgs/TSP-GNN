@@ -13,88 +13,52 @@ def solve(Ma, Mw):
         Uses Python's Redirector library to prevent Concorde from printing
         unsufferably verbose messages
     """
-
     STDOUT = 1
     STDERR = 2
-
-    write_graph(Ma,Mw,'tmp',int_weights=True)
     redirector_stdout = Redirector(fd=STDOUT)
     redirector_stderr = Redirector(fd=STDERR)
+
+    # Write graph on a temporary file
+    write_graph(Ma,Mw,filepath='tmp',int_weights=True)
     redirector_stderr.start()
     redirector_stdout.start()
+    # Solve TSP on graph
     solver = TSPSolver.from_tspfile('tmp')
+    # Get solution
     solution = solver.solve(verbose=False)
     redirector_stderr.stop()
     redirector_stdout.stop()
 
-    return list(solution.tour) if solution.found_tour else []
-#end
+    """
+        Concorde solves only symmetric TSP instances. To circumvent this, we
+        fill inexistent edges with large weights. Concretely, an inexistent
+        edge is assigned with the strictest upper limit to the cost of an
+        optimal tour, which is n (the number of nodes) times 1 (the maximum weight).
 
-def create_graph_erdos_renyi(n, target_cost):
+        If one of these edges is used in the optimal solution, we can deduce
+        that no valid tour exists (as just one of these edges costs more than
+        all the others combined).
 
-    # Select 'n' 2D points in the unit square
-    nodes = np.random.rand(n,2)
-
-    # Initialize graph with n nodes (initially disconnected)
-    Ma = np.zeros((n,n))
-    # Build a weight matrix
-    Mw = np.zeros((n,n))
-    for i in range(n):
-        for j in range(n):
-            # Multiply by 1/√2 to normalize
-            Mw[i,j] = (1.0/np.sqrt(2)) * np.sqrt((nodes[i,0]-nodes[j,0])**2+(nodes[i,1]-nodes[j,1])**2)
-        #end
+        OBS. in this case the maximum weight 1 is multiplied by 'bins' because
+        we are converting from floating point to integers
+    """
+    if any([ Ma[i,j] == 0 for (i,j) in zip(list(solution.tour),list(solution.tour)[1:]+list(solution.tour)[:1]) ]):
+        return None
+    else:
+        return list(solution.tour)
     #end
-
-    # To ensure that G admits at least one Hamiltonian path, sample a random
-    # permutation of [0..n] and add the corresponding edges to G
-    permutation = list(np.random.permutation(range(n)))
-    edges = zip(permutation, permutation[1:]+permutation[:1])
-    for i,j in edges:
-        Ma[i,j] = 1
-        Ma[j,i] = 1
-    #end
-
-    # Init list of inexistent edges
-    not_edges = [ (i,j) for i in range(n) for j in range(i+1,n) if Ma[i,j] == 0 ]
-
-    # While Lopt(G) > target_cost, add edges to G
-    route = solve(Ma,Mw)
-    Lopt = np.sum([ Mw[i,j] for (i,j) in zip(route,route[1:]+route[:1]) ])
-    diff_edge = None
-    while Lopt > target_cost:
-        if len(not_edges) == 0:
-            raise Exception("Could not create graph with Lopt < {}. Current Lopt={}".format(target_cost,Lopt))
-        #end
-        # Add a random edge to G
-        (i,j) = not_edges.pop(random.randrange(len(not_edges)))
-        Ma[i,j] = 1
-        Ma[j,i] = 1
-        diff_edge = (i,j)
-        # Solve TSP on G again
-        route = solve(Ma,Mw)
-        Lopt = np.sum([ Mw[i,j] for (i,j) in zip(route,route[1:]+route[:1]) ])
-    #end
-
-    return np.triu(Ma), Mw, diff_edge, route
 #end
 
 def create_graph_euc_2D(n, connectivity):
     """
         Creates an euclidean 2D graph with 'n' vertices and the given
         connectivity
-
-        Concretely, we sample 'n' points in the unit square and link every
-        pair with an edge whose weight is given by their euclidean distance.
-        Then some edges are erased to match the required connectivity
-
-        the 'bins' parameter determines in how many bins the edge weights are
-        going to be quantized (this is required as Concorde deals with
-        integer-valued weights)
     """
     
     # Select 'n' 2D points in the unit square
     nodes = np.random.rand(n,2)
+    # Multiply by 1/√2 such that all edge weights lie ∈ [0,1]
+    nodes = nodes / np.sqrt(2)
 
     # Build an adjacency matrix with given connectivity
     Ma = (np.random.rand(n,n) < connectivity).astype(int)
@@ -108,9 +72,8 @@ def create_graph_euc_2D(n, connectivity):
     # Build a weight matrix
     Mw = np.zeros((n,n))
     for i in range(n):
-        for j in range(n):
-            # Multiply by 1/√2 to normalize
-            Mw[i,j] = (1.0/np.sqrt(2)) * np.sqrt((nodes[i,0]-nodes[j,0])**2+(nodes[i,1]-nodes[j,1])**2)
+        for j in range(i+1,n):
+            Mw[i,j] = Mw[j,i] = np.sqrt(np.sum((nodes[i,:]-nodes[j,:])**2))
         #end
     #end
 
@@ -119,34 +82,65 @@ def create_graph_euc_2D(n, connectivity):
         for j in range(n):
             if Ma[i,j] == 0:
                 Mw[i,j] = n+1
+            #end
+        #end
+    #end
 
     # Solve
     route = solve(Ma,Mw)
-    if route == []: print('Unsolvable');
+    if route is None:
+        raise Exception('Unsolvable')
+    #end
+
+    return np.triu(Ma), Mw, route, nodes
+#end
+
+def create_graph_random(n, connectivity):
+    """
+        Creates a graph 'n' vertices and the given connectivity. Edge weights
+        are initialized randomly.
+    """
+
+    # Build an adjacency matrix with given connectivity
+    Ma = (np.random.rand(n,n) < connectivity).astype(int)
+    for i in range(n):
+        Ma[i,i] = 0
+        for j in range(i+1,n):
+            Ma[i,j] = Ma[j,i]
+        #end
+    #end
+    
+    # Build a weight matrix
+    Mw = np.random.rand(n,n)
+
+    # Enforce symmetry (but it does not matter because only edges (i,j) with i < j are added to the instance)
+    for i in range(n):
+        for j in range(i+1,n):
+            Mw[j,i] = Mw[i,j]
+        #end
+    #end
+
+    # Add huge costs to inexistent edges to simulate a disconnected instance
+    for i in range(n):
+        for j in range(n):
+            if Ma[i,j] == 0:
+                Mw[i,j] = n+1
+            #end
+        #end
+    #end
+
+    # Solve
+    route = solve(Ma,Mw)
+    if route is None:
+        raise Exception('Unsolvable')
+    #end
 
     # Check if route contains edges which are not in the graph and add them
     for (i,j) in [ (i,j) for (i,j) in zip(route,route[1:]) if Ma[i,j] == 0 ]:
         Ma[i,j] = Ma[j,i] = 1
-        Mw[i,j] = Mw[j,i] = 1
     #end
 
-    # Remove huge costs from inexistent edges to simulate a disconnected instance
-    for i in range(n):
-        for j in range(n):
-            if Ma[i,j] == 0:
-                Mw[i,j] = 0
-
-    return np.triu(Ma), Mw, ([] if route is None else route), nodes
-#end
-
-def shortest_paths(n, Ma, Mw):
-
-    D = [float('inf')]*n
-    visited = np.zeros(n,dtype=bool)
-
-    while len(visited) > 0:
-        i = visited.pop()
-    #end
+    return np.triu(Ma), Mw, route, []
 #end
 
 def create_graph_random_metric(n, connectivity):
@@ -188,92 +182,112 @@ def create_graph_random_metric(n, connectivity):
         for j in range(n):
             for k in range(n):
                 if Mw[i,j] + Mw[j,k] < Mw[i,k]:
-                    print("Graph not metric!")
-
-    # Enforce symmetry (but it does not matter because only edges (i,j) with i < j are added to the instance)
-    for i in range(n):
-        for j in range(i+1,n):
-            Mw[j,i] = Mw[i,j]
+                    raise Exception("Graph not metric!")
+                #end
+            #end
+        #end
+    #end
 
     # Add huge costs to inexistent edges to simulate a disconnected instance
     for i in range(n):
         for j in range(n):
             if Ma[i,j] == 0:
                 Mw[i,j] = n+1
+            #end
+        #end
+    #end
 
     # Solve
     route = solve(Ma,Mw)
-    if route == []: print('Unsolvable');
+    if route is None:
+        raise Exception('Unsolvable')
+    #end
 
     # Check if route contains edges which are not in the graph and add them
     for (i,j) in [ (i,j) for (i,j) in zip(route,route[1:]) if Ma[i,j] == 0 ]:
         Ma[i,j] = Ma[j,i] = 1
-        Mw[i,j] = Mw[j,i] = 1
     #end
 
-    # Remove huge costs from inexistent edges to simulate a disconnected instance
-    for i in range(n):
-        for j in range(n):
-            if Ma[i,j] == 0:
-                Mw[i,j] = 0
-
-    return np.triu(Ma), Mw, ([] if route is None else route), []
+    return np.triu(Ma), Mw, route, []
 #end
 
-def create_graph_random(n, connectivity):
-    """
-        Creates a graph 'n' vertices and the given connectivity. Edge weights
-        are initialized randomly.
-    """
+def create_graph_diff_edge(n, dev=0.02):
 
-    # Build an adjacency matrix with given connectivity
-    Ma = (np.random.rand(n,n) < connectivity).astype(int)
+    # Select 'n' 2D points in the unit square
+    nodes = np.random.rand(n,2)
+
+    # Choose connectivity at random
+    connectivity = np.random.uniform(0.9,1)
+
+    # Initialize graph with n nodes (initially disconnected)
+    Ma = (np.random.rand(n,n) < connectivity).astype(float)
     for i in range(n):
         Ma[i,i] = 0
-        for j in range(i+1,n):
+        for j in range(n):
             Ma[i,j] = Ma[j,i]
         #end
     #end
-    
     # Build a weight matrix
-    Mw = np.random.rand(n,n)
-
-    # Create networkx graph G
-    G = nx.Graph()
-    G.add_nodes_from(range(n))
-    G.add_edges_from([ (i,j,{'weight':Mw[i,j]}) for i in range(n) for j in range(n) ])
-
-    # Enforce symmetry (but it does not matter because only edges (i,j) with i < j are added to the instance)
-    for i in range(n):
-        for j in range(i+1,n):
-            Mw[j,i] = Mw[i,j]
-
-    # Add huge costs to inexistent edges to simulate a disconnected instance
+    Mw = np.zeros((n,n))
     for i in range(n):
         for j in range(n):
-            if Ma[i,j] == 0:
-                Mw[i,j] = n+1
-
-    # Solve
-    route = solve(Ma,Mw)
-    if route == []: print('Unsolvable');
-
-    # Check if route contains edges which are not in the graph and add them
-    for (i,j) in [ (i,j) for (i,j) in zip(route,route[1:]) if Ma[i,j] == 0 ]:
-        Ma[i,j] = Ma[j,i] = 1
-        Mw[i,j] = Mw[j,i] = 1
+            # Multiply by 1/√2 to normalize
+            Mw[i,j] = (1.0/np.sqrt(2)) * np.sqrt(sum((nodes[i,:]-nodes[j,:])**2))
+        #end
     #end
 
-    # Remove huge costs from inexistent edges to simulate a disconnected instance
-    for i in range(n):
-        for j in range(n):
-            if Ma[i,j] == 0:
-                Mw[i,j] = 0
+    # Connect a random sequence of nodes in order to guarantee the existence of a Hamiltonian tour
+    permutation = list(np.random.permutation(n))
+    for (i,j) in zip(permutation,permutation[1:]+permutation[:1]):
+        Ma[i,j] = Ma[j,i] = 1
+    #end
 
-    return np.triu(Ma), Mw, ([] if route is None else route), []
+    # Init list of inexistent edges
+    not_edges = [ (i,j) for i in range(n) for j in range(i+1,n) if Ma[i,j] == 0 ]
+    random.shuffle(not_edges)
+
+    # Solve instance
+    route = solve(Ma,Mw)
+    if route is None:
+        raise Exception("Unsolvable Instance")
+    #end
+
+    # Compute cost
+    Lopt0 = np.sum([ Mw[i,j] for (i,j) in zip(route,route[1:]+route[:1]) ])
+
+    diff_edge = None
+    for (i,j) in not_edges:
+        # Add edge
+        Ma[i,j] = Ma[j,i] = 1
+        diff_edge = (i,j)
+        # Solve TSP on G again
+        route = solve(Ma,Mw)
+        # Compute cost
+        Lopt1 = np.sum([ Mw[i,j] for (i,j) in zip(route,route[1:]+route[:1]) ])
+        # Deviation from Lopt0
+        if (Lopt1-Lopt0)/Lopt0 > -dev:
+            break
+        else:
+            # Backtrack
+            Ma[i,j] = Ma[j,i] = 0
+        #end
+    #end
+
+    if diff_edge is None:
+        raise Exception("Could not create diff_edge instance!")
+    #end
+
+    # Erase diff edge
+    (i,j) = diff_edge
+    Ma[i,j] = Ma[j,i] = 0
+
+    # Compute target cost as the mean value between Lopt0 and Lopt1
+    target_cost = (Lopt1+Lopt0)/2
+
+    return np.triu(Ma), Mw, target_cost, diff_edge, nodes
 #end
 
-def create_dataset(nmin, nmax, conn_min, conn_max, path, connectivity=1, samples=1000, dataset_type='euc_2D'):
+def create_dataset(nmin, nmax, path, conn_min=1, conn_max=1, samples=1000, distribution='euc_2D'):
 
     if not os.path.exists(path):
         os.makedirs(path)
@@ -281,40 +295,44 @@ def create_dataset(nmin, nmax, conn_min, conn_max, path, connectivity=1, samples
 
     for i in range(samples):
 
-        # Sample different instances until we find one which admits a Hamiltonian route
-        route = []
-        while route == []:
-            n = np.random.randint(nmin,nmax+1)
-            connectivity = np.random.uniform(conn_min,conn_max)
-            if dataset_type == 'euc_2D':
-                Ma,Mw,route,nodes = create_graph_euc_2D(n,connectivity)
-            elif dataset_type == 'random':
-                Ma,Mw,route,nodes = create_graph_random(n,connectivity)
-            elif dataset_type == 'random_metric':
-                Ma,Mw,route,nodes = create_graph_random_metric(n,connectivity)
-            elif dataset_type == 'erdos_renyi':
-                target_cost = 0.7080*np.sqrt(n) + 0.522
-                Ma,Mw,diff_edge,route = create_graph_erdos_renyi(n, target_cost)
-            else:
-                raise Exception('Unknown dataset type')
+        n = random.randint(nmin,nmax)
+        conn = np.random.uniform(conn_min,conn_max)
+
+        route = target_cost = diff_edge = None
+
+        # Create graph
+        if distribution == 'euc_2D':
+            Ma,Mw,route,nodes = create_graph_euc_2D(n,conn)
+        elif distribution == 'random':
+            Ma,Mw,route,nodes = create_graph_random(n,conn)
+        elif distribution == 'random_metric':
+            Ma,Mw,route,nodes = create_graph_random_metric(n,conn)
+        elif distribution == 'diff_edge':
+            creation_successful = False
+            while not creation_successful:
+                try:
+                    Ma,Mw,target_cost,diff_edge,nodes = create_graph_diff_edge(n)
+                    creation_successful = True
+                except:
+                    creation_successful = False
+                #end
             #end
+        else:
+            raise Exception('Unknown dataset type')
         #end
 
         # Write graph to file
-        if dataset_type == 'erdos_renyi':
-            write_graph(Ma,Mw,"{}/{}.graph".format(path,i), diff_edge=diff_edge,)
-        else:
-            write_graph(Ma,Mw,route,"{}/{}.graph".format(path,i))
-        #end
+        write_graph(Ma,Mw, filepath="{}/{}.graph".format(path,i), route=route, diff_edge=diff_edge, target_cost=target_cost)
 
-        if (i-1) % (samples//10) == 0:
-             print('{}% Complete'.format(np.round(100*i/samples)), flush=True)
+        # Report progress
+        if (i-1) % (samples//20) == 0:
+             print('Dataset creation {}% Complete'.format(int(100*i/samples)), flush=True)
         #end
 
     #end
 #end
 
-def write_graph(Ma, Mw, filepath, route=None, diff_edge=None, int_weights=False, bins=10**6):
+def write_graph(Ma, Mw, filepath, route=None, diff_edge=None, target_cost=None, int_weights=False, bins=10**6):
     with open(filepath,"w") as out:
 
         n, m = Ma.shape[0], len(np.nonzero(Ma)[0])
@@ -337,25 +355,32 @@ def write_graph(Ma, Mw, filepath, route=None, diff_edge=None, int_weights=False,
         # Write edge weights as a complete matrix
         out.write('EDGE_WEIGHT_SECTION:\n')
         for i in range(n):
-            if int_weights:
-                out.write('\t'.join([ str(int(bins*Mw[i,j])) if Ma[i,j] == 1 else str(2*bins) for j in range(n)]))
-            else:
-                out.write('\t'.join([ str(float(Mw[i,j])) for j in range(n)]))
+            for j in range(n):
+                if Ma[i,j] == 1:
+                    out.write(str( int(bins*Mw[i,j]) if int_weights else Mw[i,j]))
+                else:
+                    out.write(str(n*bins+1 if int_weights else 0))
+                #end
+                out.write(' ')
             #end
             out.write('\n')
         #end
 
-        if not route is None:
-            # Write route
-            out.write('TOUR_SECTION:\n')
-            out.write('{}\n'.format(' '.join([str(x) for x in route])))
-        #end
+        if route is None: route = [-1]*n;
+        if diff_edge is None: diff_edge = (-1,-1);
+        if target_cost is None: target_cost = -1;
 
-        if not diff_edge is None:
-            # Write diff edge (for erdos renyi distr. only)
-            out.write('DIFF_EDGE:\n')
-            out.write('{}\n'.format(' '.join([str(x) for x in diff_edge])))
-        #end
+        # Write route
+        out.write('TOUR_SECTION:\n')
+        out.write('{}\n'.format(' '.join([str(x) for x in route])))
+
+        # Write diff edge
+        out.write('DIFF_EDGE:\n')
+        out.write('{}\n'.format(' '.join([str(x) for x in diff_edge])))
+
+        # Write target cost
+        out.write('TARGET_COST:\n')
+        out.write('{}\n'.format(str(target_cost)))
 
         out.write('EOF\n')
     #end
