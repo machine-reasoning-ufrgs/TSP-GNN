@@ -1,5 +1,8 @@
 
-import sys, os, time, shutil, random, argparse
+import sys
+sys.path.insert(0, '..')
+
+import os, time, shutil, random, argparse
 import tensorflow as tf
 import numpy as np
 from itertools import islice
@@ -17,7 +20,7 @@ import seaborn
 
 def get_accuracy(sess, model, batch, time_steps):
 
-    EV, W, C, edges_mask, route_exists, n_vertices, n_edges = batch
+    EV, W, C, route_exists, n_vertices, n_edges = batch
 
     # Define feed dict
     feed_dict = {
@@ -41,8 +44,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-d', default=64, type=int, help='Embedding size for vertices and edges')
     parser.add_argument('-time_steps', default=32, type=int, help='# Timesteps')
-    parser.add_argument('-instances', default='test', help='Path for the test instances')
-    parser.add_argument('-checkpoint', default='training-0.02-small/checkpoints/epoch=2000', help='Path for the checkpoint of the trained model')
+    parser.add_argument('-instances', default='../instances/test', help='Path for the test instances')
+    parser.add_argument('-checkpoint', default='../training/dev=0.02/checkpoints/epoch=2000', help='Path for the checkpoint of the trained model')
+
+    # Create folders
+    if not os.path.exists('results'): os.makedirs('results');
+    if not os.path.exists('figures'): os.makedirs('figures');
 
     # Parse arguments from command line
     args = parser.parse_args()
@@ -69,9 +76,6 @@ if __name__ == '__main__':
         # Restore saved weights
         load_weights(sess,vars(args)['checkpoint']);
 
-        # Create instance loader
-        loader = InstanceLoader('test')
-
         # Run tests
         with open('results/test_varying_dev_TP.dat','w') as out:
             for dev in np.linspace(0,0.1,11)[1:]:
@@ -91,8 +95,6 @@ if __name__ == '__main__':
                 out.flush()
             #end
         #end
-
-        exit()
 
         # Create figure
         figure, axis = plt.subplots(figsize=(4,3))

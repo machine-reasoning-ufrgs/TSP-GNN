@@ -1,4 +1,8 @@
-import os
+
+import sys
+sys.path.insert(0, '..')
+
+import os, time, shutil, random, argparse
 import tensorflow as tf
 import numpy as np
 from itertools import islice
@@ -36,13 +40,15 @@ def get_predictions(sess, model, batch, time_steps):
 
 def process_instances():
 
-    #n = 40
     nmin,nmax = 20,40
 
     d = 64
     time_steps = 32
-    
-    num_deviations = 32#128
+    num_deviations = 32
+
+    # Create folders
+    if not os.path.exists('results'): os.makedirs('results');
+    if not os.path.exists('figures'): os.makedirs('figures');
 
     # Build model
     print('Building model ...')
@@ -57,7 +63,7 @@ def process_instances():
         sess.run( tf.global_variables_initializer() )
 
         # Restore saved weights
-        load_weights(sess,'re-training-1.0-small/checkpoints/epoch=100.0')
+        load_weights(sess,'training/dev=0.02/checkpoints/epoch=2000')
 
         deviations = np.linspace( -1, 1, num_deviations, endpoint = True )
 

@@ -1,5 +1,8 @@
 
-import sys, os, time, shutil, random, argparse
+import sys
+sys.path.insert(0, '..')
+
+import os, time, shutil, random, argparse
 import tensorflow as tf
 import numpy as np
 from itertools import islice
@@ -17,7 +20,7 @@ import seaborn
 
 def get_accuracy(sess, model, batch, time_steps):
 
-    EV, W, C, edges_mask, route_exists, n_vertices, n_edges = batch
+    EV, W, C, route_exists, n_vertices, n_edges = batch
 
     # Define feed dict
     feed_dict = {
@@ -42,8 +45,12 @@ if __name__ == '__main__':
     parser.add_argument('-d', default=64, type=int, help='Embedding size for vertices and edges')
     parser.add_argument('-time_steps', default=32, type=int, help='# Timesteps')
     parser.add_argument('-dev', default=0.02, type=float, help='Target cost deviation')
-    parser.add_argument('-instances', default='test', help='Path for the test instances')
-    parser.add_argument('-checkpoint', default='training-0.02-small/checkpoints/epoch=2000', help='Path for the checkpoint of the trained model')
+    parser.add_argument('-instances', default='../instances/test', help='Path for the test instances')
+    parser.add_argument('-checkpoint', default='../training/dev=0.02/checkpoints/epoch=2000', help='Path for the checkpoint of the trained model')
+
+    # Create folders
+    if not os.path.exists('results'): os.makedirs('results');
+    if not os.path.exists('figures'): os.makedirs('figures');
 
     # Parse arguments from command line
     args = parser.parse_args()
@@ -71,7 +78,6 @@ if __name__ == '__main__':
         # Restore saved weights
         load_weights(sess,vars(args)['checkpoint']);
 
-        """
         # Run tests
         for dev in [0.01,0.02,0.05,0.1]:
             with open('results/test_varying_sizes-{dev}.dat'.format(dev=dev),'w') as out:
@@ -79,12 +85,11 @@ if __name__ == '__main__':
                     if not os.path.isdir('test_acceptance/n={}'.format(n)):
                         # Create dataset
                         create_dataset(
+                            'test_acceptance/n={}'.format(n),
                             n,n,
                             1,1,
-                            bins=10**6,
                             samples=1024,
-                            path='test_acceptance/n={}'.format(n),
-                            dataset_type='euc_2D'
+                            distances='euc_2D'
                         )
                     #end
 
@@ -93,7 +98,7 @@ if __name__ == '__main__':
 
                     accuracy = 0
                     batch_size = 16
-                    for i,batch in enumerate(islice(loader.get_batches_diff(batch_size,dev),64)):
+                    for i,batch in enumerate(islice(loader.get_batches(batch_size,dev),64)):
                         accuracy += get_accuracy(sess,GNN,batch,time_steps)
                         if i % 4 == 0:
                             print('n={} {}% Complete...'.format(n,round(100*i/64)))
@@ -107,7 +112,6 @@ if __name__ == '__main__':
                 #end
             #end
         #end
-        """
 
         # Create figure
         figure, axis = plt.subplots(figsize=(4,4))
