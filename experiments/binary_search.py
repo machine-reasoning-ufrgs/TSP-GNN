@@ -1,13 +1,14 @@
+
+import sys
+sys.path.insert(0, '..')
+
+import os, time, shutil, random, argparse
 import tensorflow as tf
 import numpy as np
 
 from model import build_network
 from util import load_weights
-from dataset import create_graph_euc_2D
 from instance_loader import InstanceLoader
-import matplotlib as mpl
-mpl.use( "Agg" )
-from matplotlib import pyplot as plt
 
 def get_cost(sess, model, instance, time_steps, threshold = 0.5, stopping_delta = 0.01):
     
@@ -38,7 +39,7 @@ def get_cost(sess, model, instance, time_steps, threshold = 0.5, stopping_delta 
     # Create batch of size 1 with the given instance
     route_cost = sum([ Mw[min(i,j),max(i,j)] for (i,j) in zip(route,route[1:]+route[:1]) ]) / n
     batch = InstanceLoader.create_batch([(Ma,Mw,route)], target_cost=wpred)
-    EV, W, _, edges_mask, route_exists, n_vertices, n_edges = batch
+    EV, W, _, route_exists, n_vertices, n_edges = batch
     C = np.ones((m,1))
 
     # Define feed dict
@@ -82,6 +83,10 @@ if __name__ == '__main__':
     time_steps = 32
     num_instances = 512
 
+    # Create folders
+    if not os.path.exists('results'): os.makedirs('results');
+    if not os.path.exists('figures'): os.makedirs('figures');
+
     # Build model
     print('Building model ...')
     model = build_network(d)
@@ -95,10 +100,10 @@ if __name__ == '__main__':
         sess.run( tf.global_variables_initializer() )
 
         # Restore saved weights
-        load_weights(sess,'re-training/checkpoints/epoch=100.0')
+        load_weights(sess,'../training/dev=0.02/checkpoints/epoch=100')
 
         # Init instance loader
-        loader = InstanceLoader('test')
+        loader = InstanceLoader('../instances/test')
 
         avg_deviation = 0
         

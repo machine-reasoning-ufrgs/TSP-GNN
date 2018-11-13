@@ -63,9 +63,7 @@ def build_network(d):
         },
         {
             # M is a E×V adjacency matrix connecting each edge to the vertices it is connected to
-            'EV': ('E','V')#,
-	    #'W': ('E',1),
-	    #'C': ('E',1)
+            'EV': ('E','V')
         },
         {
             # V_msg_E is a MLP which computes messages from vertex embeddings to edge embeddings
@@ -89,13 +87,7 @@ def build_network(d):
                     'mat': 'EV',
                     'msg': 'V_msg_E',
                     'var': 'V'
-                }#,
-		#{
-		#    'mat': 'W'
-		#}#,
-		#{
-		#    'mat': 'C'
-		#}
+                }
             ]
         },
         name='TSP'
@@ -106,10 +98,10 @@ def build_network(d):
     GNN['route_exists'] = route_exists
     GNN['n_vertices']   = n_vertices
     GNN['n_edges']      = n_edges
-    GNN["EV"]           = EV_matrix
-    GNN["W"]            = edge_weight
-    GNN["C"]            = target_cost
-    GNN["time_steps"]   = time_steps
+    GNN['EV']           = EV_matrix
+    GNN['W']            = edge_weight
+    GNN['C']            = target_cost
+    GNN['time_steps']   = time_steps
 
     # Define E_vote, which will compute one logit for each edge
     E_vote_MLP = Mlp(
